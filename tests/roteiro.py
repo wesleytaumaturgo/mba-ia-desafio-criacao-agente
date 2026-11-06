@@ -55,16 +55,34 @@ def criar_runner(tools: list, passos: list[LlmResponse]) -> InMemoryRunner:
 
 async def criar_sessao(runner: InMemoryRunner, apartamento: str):
     return await runner.session_service.create_session(
-        app_name=APP, user_id="aurora", state={"apartamento": apartamento}
+        app_name=runner.app_name, user_id="aurora", state={"apartamento": apartamento}
     )
 
 
 async def rodar(runner: InMemoryRunner, sessao, mensagem: str = "oi") -> list:
     """Executa uma mensagem do usuário e devolve todos os eventos."""
     nova = types.Content(role="user", parts=[types.Part(text=mensagem)])
+    return await _executar(runner, sessao, nova)
+
+
+async def responder_confirmacao(
+    runner: InMemoryRunner, sessao, pedido_id: str, confirmado: bool
+) -> list:
+    """Responde um `adk_request_confirmation` pelo id, como o cliente da API."""
+    resposta = types.Part(
+        function_response=types.FunctionResponse(
+            id=pedido_id,
+            name="adk_request_confirmation",
+            response={"confirmed": confirmado},
+        )
+    )
+    return await _executar(runner, sessao, types.Content(role="user", parts=[resposta]))
+
+
+async def _executar(runner, sessao, conteudo: types.Content) -> list:
     return [
         evento
         async for evento in runner.run_async(
-            user_id="aurora", session_id=sessao.id, new_message=nova
+            user_id="aurora", session_id=sessao.id, new_message=conteudo
         )
     ]
